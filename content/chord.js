@@ -3,7 +3,7 @@
  *
  * Chrome only lets an extension *suggest* four keyboard shortcuts, which is not
  * enough for nine slots, so Alt+1..Alt+9 are handled here instead. Where a real
- * command is bound (Alt+F, Alt+Shift+F, Alt+1, Alt+2 by default) Chrome consumes
+ * command is bound (Alt+S, Alt+Shift+S, Alt+1, Alt+2 by default) Chrome consumes
  * the key before the page ever sees it and the service worker handles it — this
  * script simply never fires for those. Everything else lands here.
  *
@@ -30,9 +30,9 @@
         return stop(event);
       }
 
-      // Fallback for the push shortcut: only reached when Alt+F is not bound as
-      // a command (some platforms hand Alt+F to the browser menu first).
-      if (event.code === 'KeyF' && !event.shiftKey) {
+      // Fallback for the push shortcut: only reached when Alt+S is unbound as a
+      // command, e.g. because another extension claimed it first.
+      if (event.code === 'KeyS' && !event.shiftKey) {
         send('push', {}, (res) => {
           if (!res) return;
           if (res.ok) toast(res.added ? `Stacked as ${res.slot}` : `Already at ${res.slot}`);
