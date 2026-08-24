@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tabstack settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Tabstack</h1>
+        <p class="sub">Settings sync with your Chrome profile. The stack itself stays on this device.</p>
+      </header>
+
+      <section>
+        <h2>Interaction</h2>
+
+        <label class="field">
+          <span class="label">What the stack shortcut does</span>
+          <select id="mode">
+            <option value="leader">Leader chord — then a digit jumps, or it stacks</option>
+            <option value="direct">Direct — stack the current tab immediately</option>
+          </select>
+          <span class="hint" id="mode-hint"></span>
+        </label>
+
+        <label class="field" id="timeout-field">
+          <span class="label">Chord window <output id="timeout-out"></output></span>
+          <input type="range" id="leaderTimeoutMs" min="200" max="3000" step="50" />
+          <span class="hint">How long after the leader a digit still counts. Shorter feels crisper; longer is forgiving.</span>
+        </label>
+
+        <label class="check"><input type="checkbox" id="showHud" /> <span>Show the slot list on the page while armed</span></label>
+        <label class="check"><input type="checkbox" id="toasts" /> <span>Confirmation bubbles</span></label>
+      </section>
+
+      <section>
+        <h2>Direct keys</h2>
+        <label class="check"><input type="checkbox" id="altDigitJump" /> <span><kbd>Alt</kbd>+<kbd>1…9</kbd> jumps without the leader</span></label>
+        <label class="check"><input type="checkbox" id="altShiftDigitRemove" /> <span><kbd>Alt</kbd>+<kbd>⇧</kbd>+<kbd>1…9</kbd> removes a slot</span></label>
+      </section>
+
+      <section>
+        <h2>Stacking</h2>
+        <label class="field">
+          <span class="label">Where a new tab lands</span>
+          <select id="pushPosition">
+            <option value="append">Bottom — existing slot numbers never move</option>
+            <option value="top">Top — newest is always slot 1</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="reuseTab" /> <span>Focus an already-open tab instead of opening a second copy</span></label>
+      </section>
+
+      <section>
+        <h2>Keyboard shortcuts</h2>
+        <p class="sub">
+          Chrome owns these — an extension can suggest four defaults but cannot change a binding.
+          They live in your browser profile, not in these settings.
+        </p>
+        <ul id="commands" class="commands"></ul>
+        <button id="open-shortcuts" class="secondary">Open Chrome’s shortcut editor</button>
+      </section>
+
+      <footer>
+        <button id="reset" class="secondary">Reset to defaults</button>
+        <span id="status" class="status" role="status"></span>
+      </footer>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

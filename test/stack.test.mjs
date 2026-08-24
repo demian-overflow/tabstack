@@ -40,6 +40,15 @@ test('push does not mutate the input stack', () => {
   assert.deepEqual(before, copy);
 });
 
+test('push position "top" puts the newest item in slot 1', () => {
+  let stack = push([], item('https://a.dev/')).stack;
+  const res = push(stack, item('https://b.dev/'), 'top');
+  assert.equal(res.slot, 1);
+  assert.deepEqual(urls(res.stack), ['https://b.dev/', 'https://a.dev/']);
+  assert.deepEqual(urls(push(stack, item('https://b.dev/'), 'append').stack),
+    ['https://a.dev/', 'https://b.dev/'], 'append is still the default shape');
+});
+
 test('at() rejects out-of-range and non-integer slots', () => {
   const stack = push([], item('https://a.dev/')).stack;
   assert.equal(at(stack, 0), null);

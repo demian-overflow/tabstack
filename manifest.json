@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Tabstack",
-  "version": "0.1.2",
-  "description": "A keyboard-driven stack of tabs in the Chrome side panel. Alt+0 to stack the current tab, Alt+1..9 to jump back.",
+  "version": "0.2.0",
+  "description": "A keyboard-driven stack of tabs in the Chrome side panel. Alt+S to stack the current tab, Alt+S then 1-9 to jump back.",
   "minimum_chrome_version": "116",
   "permissions": ["tabs", "storage", "sidePanel"],
   "background": {
@@ -11,6 +11,10 @@
   },
   "side_panel": {
     "default_path": "panel/panel.html"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
   },
   "action": {
     "default_title": "Tabstack",
@@ -37,11 +41,11 @@
   ],
   "commands": {
     "push-tab": {
-      "suggested_key": { "default": "Alt+0" },
-      "description": "Stack the current tab"
+      "suggested_key": { "default": "Alt+S" },
+      "description": "Stack the current tab (leader key for Alt+S then 1-9)"
     },
     "open-panel": {
-      "suggested_key": { "default": "Alt+Shift+0" },
+      "suggested_key": { "default": "Alt+Shift+S" },
       "description": "Open the Tabstack side panel"
     },
     "jump-1": {

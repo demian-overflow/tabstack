@@ -94,6 +94,7 @@ function hostOf(url) {
 const act = (type, payload) => send(type, payload);
 
 document.getElementById('add').addEventListener('click', () => act('push', {}));
+document.getElementById('settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
 document.getElementById('clear').addEventListener('click', () => {
   if (stack.length && confirm(`Remove all ${stack.length} stacked tabs?`)) act('clear', {});
 });

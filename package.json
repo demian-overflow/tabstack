@@ -1,11 +1,11 @@
 {
   "name": "tabstack",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "Keyboard-driven stack of tabs in the Chrome side panel",
   "type": "module",
   "scripts": {
-    "test": "node --test test/stack.test.mjs",
+    "test": "node --test test/*.test.mjs",
     "icons": "python3 tools/make-icons.py"
   },
   "license": "MIT"
