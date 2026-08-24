@@ -3,9 +3,12 @@
  *
  * Chrome only lets an extension *suggest* four keyboard shortcuts, which is not
  * enough for nine slots, so Alt+1..Alt+9 are handled here instead. Where a real
- * command is bound (Alt+S, Alt+Shift+S, Alt+1, Alt+2 by default) Chrome consumes
+ * command is bound (Alt+0, Alt+Shift+0, Alt+1, Alt+2 by default) Chrome consumes
  * the key before the page ever sees it and the service worker handles it — this
  * script simply never fires for those. Everything else lands here.
+ *
+ * Everything here keys off event.code, i.e. physical key position, so the
+ * bindings survive a switch to a non-Latin keyboard layout.
  *
  * Trade-off: content scripts cannot run on chrome:// pages, the Web Store, or
  * the PDF viewer. Slots you use constantly are worth binding as real commands at
@@ -30,9 +33,9 @@
         return stop(event);
       }
 
-      // Fallback for the push shortcut: only reached when Alt+S is unbound as a
+      // Fallback for the push shortcut: only reached when Alt+0 is unbound as a
       // command, e.g. because another extension claimed it first.
-      if (event.code === 'KeyS' && !event.shiftKey) {
+      if (event.code === 'Digit0' && !event.shiftKey) {
         send('push', {}, (res) => {
           if (!res) return;
           if (res.ok) toast(res.added ? `Stacked as ${res.slot}` : `Already at ${res.slot}`);

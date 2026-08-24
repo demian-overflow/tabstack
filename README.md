@@ -2,7 +2,7 @@
 
 A keyboard-driven stack of tabs, living in the Chrome side panel.
 
-`Alt+S` pushes the current tab onto a numbered stack. `Alt+1` … `Alt+9` jump
+`Alt+0` pushes the current tab onto a numbered stack. `Alt+1` … `Alt+9` jump
 straight back to it. The side panel shows the same list in the same order, so
 what you see and what you type never disagree.
 
@@ -21,8 +21,8 @@ Requires Chrome 116+ (Side Panel API).
 
 | Key | Action | Where it works |
 | --- | --- | --- |
-| `Alt+S` | Stack the current tab | Everywhere (Chrome command) |
-| `Alt+Shift+S` | Open the side panel | Everywhere (Chrome command) |
+| `Alt+0` | Stack the current tab | Everywhere (Chrome command) |
+| `Alt+Shift+0` | Open the side panel | Everywhere (Chrome command) |
 | `Alt+1`, `Alt+2` | Jump to slot 1 / 2 | Everywhere (Chrome command) |
 | `Alt+3` … `Alt+9` | Jump to slot 3 … 9 | Normal pages (content script) |
 | `Alt+Shift+1…9` | Remove that slot | Normal pages (content script) |
@@ -56,11 +56,12 @@ That top-down order is why the obvious binding does not work:
   Linux (so is `Alt+E`), and the docs are explicit that browser shortcuts take
   priority and cannot be overridden. `chrome://extensions/shortcuts` will let you
   type it; it just never fires.
-- **`Alt+S` is free** at both levels — not in Chrome's accelerator table, not in
-  GNOME's default `Alt` bindings (which claim only function keys, `Tab`, `` ` ``,
-  `space` and `Escape`).
-- **`Alt+1` … `Alt+9` are free too.** Chrome switches tabs with `Ctrl+1…8`, not
-  `Alt`, and GNOME's launcher shortcuts are on `Super`.
+- **The digit row is free.** Chrome switches tabs with `Ctrl+1…8`, not `Alt`,
+  and GNOME's launcher shortcuts are on `Super`. Nothing claims `Alt+0…9` at
+  either layer, which is why every default binding lives there.
+- **Letters are riskier than they look.** Beyond Chrome's own `Alt+D/E/F`, a
+  letter can collide with a page's `accesskey` or a GTK menu mnemonic, and — see
+  below — it can stop matching outright when you switch keyboard layout.
 
 Two more limits shape the layout:
 
@@ -68,13 +69,26 @@ Two more limits shape the layout:
   many commands the extension declares. Nine slots do not fit, so the four go to
   what must work on `chrome://` pages — push, panel, slots 1 and 2 — and the rest
   are declared unbound for you to assign, or handled in-page.
-- **`Ctrl+Alt+…` is rejected outright** by the commands API, to stay clear of
-  `AltGr`. Every shortcut must contain `Ctrl` or `Alt`, optionally plus `Shift`.
+- **The grammar is narrow.** Every shortcut must contain `Ctrl` or `Alt`, with
+  `Shift` optional. `Ctrl+Alt+…` is rejected outright (to stay clear of `AltGr`),
+  and there is no `Super`/`Meta` modifier, no `F1`–`F12`, and no `Fn` — the `Fn`
+  key is resolved inside the keyboard's own firmware and never reaches the
+  kernel, let alone the browser.
 
 `Alt+3`…`Alt+9` therefore run in a content script, which has no four-key limit
 but only reaches pages an extension may inject into — not `chrome://`, the Web
 Store, or the PDF viewer. If you lean on one of those slots, bind it once at
 `chrome://extensions/shortcuts` and it starts working everywhere.
+
+### Non-Latin keyboard layouts
+
+If you switch layouts (`us,ru,ua`, say), letter-based shortcuts are the first
+thing to break: the physical `S` key stops reporting as `S`. Digits do not move
+— `1` is `1` in Latin and Cyrillic alike — which is the second reason the
+defaults live on the digit row.
+
+The content-script layer is immune either way: it matches on `event.code`, the
+physical key position, so `Alt+3` is `Alt+3` regardless of the active layout.
 
 ### Making a shortcut work outside Chrome
 
@@ -84,6 +98,12 @@ accepts `Ctrl+Shift+[0…9]` for those — a three-finger chord for something yo
 press dozens of times an hour, so Tabstack skips it. Anything richer (a GNOME custom shortcut that talks
 to the extension while Chrome is in the background) needs a native messaging
 host, which is a much bigger surface than this prototype wants.
+
+If the legal combinations genuinely run out, the fix belongs below the browser:
+a remapper like [`keyd`](https://github.com/rvaiya/keyd) can turn an unused
+physical key — `Menu`, `Caps Lock` — into a held layer that *emits* `Alt+digit`.
+Chrome then sees an ordinary, legal shortcut and never knows the difference,
+which is the closest thing to an `Fn` layer that an extension can be given.
 
 Shortcuts you assign by hand live in the profile, not in the extension:
 `~/.config/google-chrome/<Profile>/Preferences` under `extensions.commands`.
@@ -96,7 +116,7 @@ exist precisely so that is optional.
 ```mermaid
 flowchart LR
     subgraph Input
-        CMD["chrome.commands<br/>Alt+S, Alt+Shift+S, Alt+1/2"]
+        CMD["chrome.commands<br/>Alt+0, Alt+Shift+0, Alt+1/2"]
         CS["content/chord.js<br/>Alt+3…9, Alt+Shift+1…9"]
         UI["panel/panel.js<br/>click, digits, arrows"]
     end
@@ -185,7 +205,7 @@ Permissions the manifest asks for, and why:
 
 ## Status
 
-Prototype (v0.1.1) — unpacked install, no Web Store listing. Known gaps:
+Prototype (v0.1.2) — unpacked install, no Web Store listing. Known gaps:
 
 - No drag-to-reorder in the panel (arrow buttons and `Alt+↑/↓` only).
 - Slots beyond 9 are stored and clickable but have no keyboard binding.
