@@ -112,12 +112,16 @@ async function reorder(slot, delta) {
 /* ----------------------------------------------------------- leader chord */
 
 /**
- * Alt+S arms the chord instead of stacking immediately: a digit within the
- * window jumps to that slot, anything else (or the timeout) commits the push.
+ * Alt+S arms the chord instead of stacking immediately. It is an accord, not a
+ * sequence: keep Alt held and press a digit, and you jump to that slot; release
+ * Alt without pressing one, and the tab is stacked.
  *
- * The pending push is held here in memory. The service worker stays alive
- * while its timer is outstanding, and the window is under a second, so this
- * does not need the durability of storage.session.
+ * Chrome swallows the Alt+S keydown to fire this command, so the page never
+ * sees it and cannot track the accord itself — hence the arm message. The digit
+ * that follows is an ordinary Alt+digit the page (or a bound command) does see.
+ *
+ * The pending push is held here in memory. The service worker stays alive while
+ * its timer is outstanding, so this does not need storage.session.
  */
 let pending = null;
 
@@ -133,24 +137,34 @@ async function arm(tab) {
   const settings = await getSettings();
   if (settings.mode === 'direct') return announce(tab, await pushTab(tab));
 
-  await commitPending(); // a second Alt+S resolves the first chord
+  // Holding the accord makes the key autorepeat, which re-fires the command.
+  // Treat repeats as "still held" rather than as a new press.
+  if (pending && pending.tab.id === tab.id) return restartTimer(settings.accordTimeoutMs);
+
+  await commitPending(); // a press on a different tab resolves the old accord
 
   const stack = await getStack();
   const armed = await tell(tab.id, {
     type: 'arm',
     stack: settings.showHud ? stack.map(hudItem) : [],
-    timeoutMs: settings.leaderTimeoutMs,
+    timeoutMs: settings.accordTimeoutMs,
     showHud: settings.showHud,
   });
 
   // No content script on this page (chrome://, Web Store, PDF viewer): there is
-  // nothing that can catch the follow-up digit, so just do the obvious thing.
+  // nothing that can watch the accord, so just do the obvious thing.
   if (!armed) return announce(tab, await pushTab(tab));
 
   pending = {
     tab,
-    timer: setTimeout(() => void commitPending(), settings.leaderTimeoutMs),
+    timer: setTimeout(() => void commitPending(), settings.accordTimeoutMs),
   };
+}
+
+function restartTimer(timeoutMs) {
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pending.timer = setTimeout(() => void commitPending(), timeoutMs);
 }
 
 async function commitPending() {

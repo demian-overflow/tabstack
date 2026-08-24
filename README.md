@@ -2,10 +2,11 @@
 
 A keyboard-driven stack of tabs, living in the Chrome side panel.
 
-`Alt+S` is the leader: press it and a numbered list of the stack appears on the
-page. Follow it with `1`…`9` to jump to that slot; press anything else, or just
-wait, and it stacks the current tab instead. The side panel shows the same list
-in the same order, so what you see and what you type never disagree.
+`Alt+S` is one accord, not a sequence. **Hold it** and a numbered list of the
+stack appears on the page; keep holding and press `1`…`9` to jump to that slot.
+**Let go** without pressing a digit and the current tab is stacked. The side
+panel shows the same list in the same order, so what you see and what you type
+never disagree.
 
 <img src="icons/icon128.png" width="64" alt="">
 
@@ -22,13 +23,13 @@ Requires Chrome 116+ (Side Panel API).
 
 | Key | Action | Where it works |
 | --- | --- | --- |
-| `Alt+S` | Arm the chord, or stack the tab | Everywhere (Chrome command) |
-| `Alt+S` then `1…9` | Jump to that slot | Normal pages (needs the chord) |
-| `Alt+S` then `⇧`+`1…9` | Remove that slot | Normal pages |
-| `Alt+S` then `Esc` | Cancel — no stack, no jump | Normal pages |
+| `Alt+S` (tap) | Stack the current tab | Everywhere (Chrome command) |
+| `Alt+S`+`1…9` | Jump to that slot, all held together | Normal pages |
+| `Alt+S`+`⇧`+`1…9` | Remove that slot | Normal pages |
+| `Alt+S`+`Esc` | Cancel — no stack, no jump | Normal pages |
 | `Alt+Shift+S` | Open the side panel | Everywhere (Chrome command) |
-| `Alt+1`, `Alt+2` | Jump to slot 1 / 2, no leader | Everywhere (Chrome command) |
-| `Alt+3` … `Alt+9` | Jump to slot 3 … 9, no leader | Normal pages (content script) |
+| `Alt+1`, `Alt+2` | Jump to slot 1 / 2, on its own | Everywhere (Chrome command) |
+| `Alt+3` … `Alt+9` | Jump to slot 3 … 9, on its own | Normal pages (content script) |
 | `Alt+Shift+1…9` | Remove that slot | Normal pages (content script) |
 | `1` … `9` | Jump, when the panel has focus | Side panel |
 | `↑` `↓` / `Enter` / `Backspace` | Select / open / remove | Side panel |
@@ -38,13 +39,25 @@ Pushing a URL that is already stacked refreshes it in place rather than adding a
 duplicate, and new tabs are **appended**, so a slot number stays put for as long
 as that item lives. Muscle memory survives.
 
-Everything above is configurable, including turning the leader off entirely —
+Everything above is configurable, including turning the accord off entirely —
 see [Settings](#settings).
 
-### How the chord actually works
+### How the accord actually works
 
-`chrome.commands` registers single accelerators; there is no sequence syntax, so
-`Alt+S`-then-`1` cannot be one command. It is split in two:
+`chrome.commands` registers single accelerators, and `Alt+S+1` is not one of
+them — Chrome has no notion of a three-key accord, and `S` is not a modifier it
+can match on. What saves it is that **the page never needs to see `S` at all**:
+
+```
+Alt down ─────────────────────────────────────── Alt up
+     S down (swallowed by Chrome → command fires)
+              1 down  →  arrives as an ordinary Alt+1
+```
+
+Chrome swallows the `Alt+S` keydown to fire the command, so the content script
+cannot detect the accord itself — the service worker tells it. From there the
+digit is just an `Alt+digit` keydown like any other, and the release of `Alt` —
+which the page *does* see — is what ends the accord.
 
 ```mermaid
 sequenceDiagram
@@ -53,29 +66,41 @@ sequenceDiagram
     participant SW as service worker
     participant P as page (content script)
 
-    U->>C: Alt+S
-    C->>SW: commands.onCommand
-    SW->>P: arm (stack, timeout)
-    P-->>U: slot list + countdown
-    alt digit within the window
-        U->>P: 1
-        P->>SW: chord jump 1
-        SW->>SW: cancel pending push
+    U->>C: Alt down, S down
+    C->>SW: commands.onCommand (Alt+S)
+    SW->>P: arm (stack contents)
+    Note over P: Alt already up? commit at once
+    P-->>U: slot list, after 180 ms of holding
+    alt digit while still held
+        U->>P: 1 (as Alt+1)
+        P->>SW: accord → jump 1
+        SW->>SW: cancel the pending push
         SW-->>U: focus slot 1
-    else timeout, or any other key
-        SW->>SW: timer fires
+    else Alt released
+        U->>P: keyup Alt
+        P->>SW: accord → commit
         SW-->>U: tab stacked
     end
 ```
 
-The push is *deferred*, not undone: nothing is written until the window closes.
-The cost is that `Alt+S` alone takes `leaderTimeoutMs` to land — which is why
-the countdown bar exists, and why the window is adjustable.
+The push is *deferred, not undone*: nothing is written until the accord ends, so
+you never see a stray entry appear and vanish. Because the release commits it,
+a plain tap of `Alt+S` still lands immediately — there is no timeout in the
+common path. Two details make that hold up in practice:
+
+- **A tap can outrun the arm message.** If `Alt` is already back up when it
+  arrives, the content script commits straight away instead of arming.
+- **Holding the accord makes `S` autorepeat**, re-firing the command several
+  times a second. Repeats on the same tab are treated as "still held" rather
+  than as new presses.
+
+The hold limit in settings is only a safety net for when the release is never
+seen at all — focus jumped to the omnibox, the page navigated mid-accord.
 
 On a page where no content script can run — `chrome://`, the Web Store, the PDF
 viewer, the new tab page — nothing answers the arm message, so the service
-worker stacks the tab immediately instead of arming a chord that could never be
-completed. The direct `Alt+1`/`Alt+2` commands keep working there too.
+worker stacks the tab immediately instead of arming an accord nothing could
+watch. The direct `Alt+1`/`Alt+2` commands keep working there too.
 
 ### Why these keys
 
@@ -114,10 +139,10 @@ Two more limits shape the layout:
 
 - **Only four shortcuts can ship pre-assigned** (`suggested_key`), no matter how
   many commands the extension declares. Nine slots do not fit, so the four go to
-  what must work on `chrome://` pages — the leader, the panel, and slots 1 and 2
+  what must work on `chrome://` pages — the accord key, the panel, and slots 1 and 2
   — and the rest are declared unbound for you to assign, or handled in-page.
-  The leader chord exists precisely to reach the other slots without spending
-  binds on them.
+  The accord exists precisely to reach the other slots without spending binds
+  on them.
 - **The grammar is narrow.** Every shortcut must contain `Ctrl` or `Alt`, with
   `Shift` optional. `Ctrl+Alt+…` is rejected outright (to stay clear of `AltGr`),
   and there is no `Super`/`Meta` modifier, no `F1`–`F12`, and no `Fn` — the `Fn`
@@ -139,7 +164,7 @@ alike — so `Alt+1`/`Alt+2` are the safest bindings on such a machine.
 Everything Tabstack handles itself is immune: both the chord follow-up and the
 direct `Alt+3…9` match on `event.code`, the physical key position, so they work
 the same under any layout. If `Alt+S` ever stops firing after a layout switch,
-that is Chrome's binding, not the extension's — rebind the leader to a digit at
+that is Chrome's binding, not the extension's — rebind the accord key to a digit at
 `chrome://extensions/shortcuts` and the chord behaves identically.
 
 ### Making a shortcut work outside Chrome
@@ -172,10 +197,10 @@ Open them from the gear in the side panel, or right-click the toolbar icon →
 
 | Setting | Default | What it changes |
 | --- | --- | --- |
-| Mode | `leader` | `leader` arms the chord; `direct` stacks the moment you press `Alt+S` |
-| Chord window | `700 ms` | How long a digit still counts after the leader |
-| Slot list on page | on | The countdown HUD while armed |
-| `Alt+1…9` jumps | on | Direct jumps without the leader |
+| Mode | `accord` | `accord` waits for the release; `direct` stacks the moment you press `Alt+S` |
+| Hold limit | `1500 ms` | Safety net if the `Alt` release is never seen; not the normal path |
+| Slot list on page | on | The HUD, after 180 ms of holding |
+| `Alt+1…9` jumps | on | Direct jumps without holding `S` |
 | `Alt+⇧+1…9` removes | on | Direct removal |
 | Confirmation bubbles | on | The on-page toasts |
 | New tab lands | bottom | `top` makes the newest slot 1, at the cost of renumbering |
@@ -306,14 +331,14 @@ Permissions the manifest asks for, and why:
 
 ## Status
 
-Prototype (v0.2.0) — unpacked install, no Web Store listing. Known gaps:
+Prototype (v0.3.0) — unpacked install, no Web Store listing. Known gaps:
 
 - No drag-to-reorder in the panel (arrow buttons and `Alt+↑/↓` only).
 - Slots beyond 9 are stored and clickable but have no keyboard binding — the
-  chord reads a single digit, not a multi-digit number.
+  accord reads a single digit, not a multi-digit number.
 - The pending push is held in the service worker's memory. If Chrome tears the
-  worker down inside the chord window the push is dropped; at sub-second windows
-  this has not been observed, but it is not guaranteed by the platform.
+  worker down mid-accord the push is dropped; over the length of a keypress this
+  has not been observed, but it is not guaranteed by the platform.
 - The stack is global, not per-window or per-profile-session.
 
 ## License

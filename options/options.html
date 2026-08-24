@@ -19,25 +19,28 @@
         <label class="field">
           <span class="label">What the stack shortcut does</span>
           <select id="mode">
-            <option value="leader">Leader chord — then a digit jumps, or it stacks</option>
+            <option value="accord">Accord — hold it, add a digit to jump; release to stack</option>
             <option value="direct">Direct — stack the current tab immediately</option>
           </select>
           <span class="hint" id="mode-hint"></span>
         </label>
 
         <label class="field" id="timeout-field">
-          <span class="label">Chord window <output id="timeout-out"></output></span>
-          <input type="range" id="leaderTimeoutMs" min="200" max="3000" step="50" />
-          <span class="hint">How long after the leader a digit still counts. Shorter feels crisper; longer is forgiving.</span>
+          <span class="label">Hold limit <output id="timeout-out"></output></span>
+          <input type="range" id="accordTimeoutMs" min="200" max="5000" step="50" />
+          <span class="hint">
+            Safety net only — the accord ends the instant you release <kbd>Alt</kbd>. This caps how long
+            it stays armed if that release is never seen, e.g. because focus moved to browser UI.
+          </span>
         </label>
 
-        <label class="check"><input type="checkbox" id="showHud" /> <span>Show the slot list on the page while armed</span></label>
+        <label class="check"><input type="checkbox" id="showHud" /> <span>Show the slot list while the accord is held</span></label>
         <label class="check"><input type="checkbox" id="toasts" /> <span>Confirmation bubbles</span></label>
       </section>
 
       <section>
         <h2>Direct keys</h2>
-        <label class="check"><input type="checkbox" id="altDigitJump" /> <span><kbd>Alt</kbd>+<kbd>1…9</kbd> jumps without the leader</span></label>
+        <label class="check"><input type="checkbox" id="altDigitJump" /> <span><kbd>Alt</kbd>+<kbd>1…9</kbd> jumps without holding <kbd>S</kbd></span></label>
         <label class="check"><input type="checkbox" id="altShiftDigitRemove" /> <span><kbd>Alt</kbd>+<kbd>⇧</kbd>+<kbd>1…9</kbd> removes a slot</span></label>
       </section>
 

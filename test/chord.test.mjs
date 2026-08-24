@@ -30,6 +30,12 @@ test('any other key commits the push and is passed through to the page', () => {
   }
 });
 
+test('the digit resolves the same whether or not Alt is still held', () => {
+  // The accord is pressed with Alt down, so the digit arrives as Alt+3; a
+  // sequence would deliver a bare 3. Both must mean the same thing.
+  assert.deepEqual(resolve('Digit3', { altKey: true }), resolve('Digit3', { altKey: false }));
+});
+
 test('slot 0 is not a slot', () => {
   assert.equal(resolve('Digit0').action, 'commit');
   assert.equal(resolve('Digit0').slot, undefined);

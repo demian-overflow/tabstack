@@ -2,10 +2,11 @@
  * Page-level keyboard layer.
  *
  * Two jobs:
- *  1. The follow-up half of the leader chord. Alt+S is a real Chrome command,
- *     so the service worker sees it and asks this script to catch the next key.
- *     Chrome commands are single accelerators — there is no sequence syntax —
- *     so a chord can only be completed down here, in the renderer.
+ *  1. The second half of the Alt+S accord. Chrome swallows the Alt+S keydown to
+ *     fire its command, so the page never sees that key and cannot detect the
+ *     accord on its own; the service worker tells it when the accord is armed.
+ *     The digit pressed while Alt is still down arrives here as an ordinary
+ *     Alt+digit, and releasing Alt ends the accord.
  *  2. Direct Alt+1..9 / Alt+Shift+1..9, which sidestep the four-shortcut limit
  *     on suggested keys.
  *
@@ -20,6 +21,8 @@
   // A single closure keeps the armed state and the UI in step.
   const ui = createUi();
   let armed = false;
+  let altDown = false;
+  let hudTimer = null;
   let settings = { altDigitJump: true, altShiftDigitRemove: true, toasts: true };
 
   chrome.runtime.sendMessage({ type: 'settings' }, (res) => {
@@ -35,29 +38,61 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg) return;
     if (msg.type === 'arm') {
+      // Racing the tap: Alt may already be back up by the time this arrives
+      // (the arm message costs a few ms), in which case the accord is over
+      // before it began and the tab should just be stacked.
+      if (!altDown) return send({ type: 'chord', action: 'commit' });
       armed = true;
-      if (msg.showHud) ui.showHud(msg.stack, msg.timeoutMs);
+      if (msg.showHud) {
+        // Only surface the list if the accord is genuinely being *held*, so a
+        // quick tap does not flash a panel at you.
+        hudTimer = setTimeout(() => ui.showHud(msg.stack, msg.timeoutMs), 180);
+      }
       return;
     }
     if (msg.type === 'disarm') {
-      armed = false;
-      ui.hideHud();
+      disarm();
       return;
     }
     if (msg.type === 'toast' && settings.toasts) ui.toast(msg.text);
   });
 
   document.addEventListener('keydown', onKeyDown, true); // capture: beat the page
+  document.addEventListener('keyup', onKeyUp, true);
+  // Losing focus means the keyup may never arrive; end the accord rather than
+  // leave it armed until the safety-net timeout.
+  window.addEventListener('blur', () => {
+    altDown = false;
+    if (armed) finish('commit');
+  });
+
+  function disarm() {
+    armed = false;
+    clearTimeout(hudTimer);
+    ui.hideHud();
+  }
+
+  /** Resolve the accord exactly once, and tell the worker how it ended. */
+  function finish(action, slot) {
+    disarm();
+    send({ type: 'chord', action, slot });
+  }
+
+  function onKeyUp(event) {
+    if (event.key !== 'Alt') return;
+    altDown = false;
+    // Released without choosing a slot: that is the "stack this tab" gesture.
+    if (armed) finish('commit');
+  }
 
   function onKeyDown(event) {
+    if (event.key === 'Alt') altDown = true;
     if (event.isComposing || event.repeat) return;
 
     if (armed) {
       const { action, slot, swallow } = resolveChord(event.code, { shiftKey: event.shiftKey });
       if (action === 'ignore') return;
-      armed = false;
-      ui.hideHud();
-      send({ type: 'chord', action, slot });
+      finish(action, slot);
       if (swallow) {
         event.preventDefault();
         event.stopPropagation();
@@ -108,6 +143,13 @@
     }
   }
 
+  const text = (value) => document.createTextNode(value);
+  const strong = (value) => {
+    const el = document.createElement('b');
+    el.textContent = value;
+    return el;
+  };
+
   function createUi() {
     let host = null;
     let hud = null;
@@ -138,7 +180,11 @@
         }
         .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .none { color: #9aa3b2; padding: 4px 6px; }
-        .meter { height: 2px; background: #3d6ef5; border-radius: 2px; margin: 6px 6px 2px; transform-origin: left; }
+        .hint {
+          color: #9aa3b2; font-size: 11px; padding: 6px 6px 2px; margin-top: 4px;
+          border-top: 1px solid #262b35;
+        }
+        .hint b { color: #f2f4f8; font-weight: 600; }
       `;
       hud = document.createElement('div');
       hud.id = 'hud';
@@ -156,13 +202,13 @@
     }
 
     return {
-      showHud(items, timeoutMs) {
+      showHud(items) {
         if (!attach()) return;
         hud.replaceChildren();
         if (!items.length) {
           const none = document.createElement('div');
           none.className = 'none';
-          none.textContent = 'Stack empty — release to stack this tab';
+          none.textContent = 'Stack is empty';
           hud.append(none);
         } else {
           for (const item of items.slice(0, 9)) {
@@ -178,16 +224,14 @@
             hud.append(row);
           }
         }
-        const meter = document.createElement('div');
-        meter.className = 'meter';
-        hud.append(meter);
+        const hint = document.createElement('div');
+        hint.className = 'hint';
+        // No countdown bar: the accord ends when you let go, not on a timer.
+        hint.append(...(items.length
+          ? [text('press '), strong('1–9'), text(' to jump · '), strong('⇧'), text('+digit removes · release to stack')]
+          : [text('release to stack this tab')]));
+        hud.append(hint);
         hud.classList.add('show');
-        // Visual countdown of the chord window, so the timeout is never a mystery.
-        meter.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], {
-          duration: timeoutMs,
-          easing: 'linear',
-          fill: 'forwards',
-        });
       },
       hideHud() {
         if (hud) hud.classList.remove('show');

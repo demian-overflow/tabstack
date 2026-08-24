@@ -9,16 +9,16 @@ test('normalize fills in a missing or junk object with the defaults', () => {
   assert.deepEqual(normalize({}), DEFAULTS);
 });
 
-test('normalize clamps the chord window to its documented range', () => {
-  assert.equal(normalize({ leaderTimeoutMs: 50 }).leaderTimeoutMs, LIMITS.leaderTimeoutMs.min);
-  assert.equal(normalize({ leaderTimeoutMs: 99999 }).leaderTimeoutMs, LIMITS.leaderTimeoutMs.max);
-  assert.equal(normalize({ leaderTimeoutMs: 850 }).leaderTimeoutMs, 850);
+test('normalize clamps the hold limit to its documented range', () => {
+  assert.equal(normalize({ accordTimeoutMs: 50 }).accordTimeoutMs, LIMITS.accordTimeoutMs.min);
+  assert.equal(normalize({ accordTimeoutMs: 99999 }).accordTimeoutMs, LIMITS.accordTimeoutMs.max);
+  assert.equal(normalize({ accordTimeoutMs: 850 }).accordTimeoutMs, 850);
 });
 
 test('normalize coerces the string a range input hands back', () => {
-  assert.equal(normalize({ leaderTimeoutMs: '450' }).leaderTimeoutMs, 450);
-  assert.equal(normalize({ leaderTimeoutMs: '450.6' }).leaderTimeoutMs, 451);
-  assert.equal(normalize({ leaderTimeoutMs: 'abc' }).leaderTimeoutMs, DEFAULTS.leaderTimeoutMs);
+  assert.equal(normalize({ accordTimeoutMs: '450' }).accordTimeoutMs, 450);
+  assert.equal(normalize({ accordTimeoutMs: '450.6' }).accordTimeoutMs, 451);
+  assert.equal(normalize({ accordTimeoutMs: 'abc' }).accordTimeoutMs, DEFAULTS.accordTimeoutMs);
 });
 
 test('normalize rejects enum values that are not offered', () => {

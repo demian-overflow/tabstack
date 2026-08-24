@@ -10,7 +10,7 @@ const el = (id) => document.getElementById(id);
 const status = el('status');
 
 const MODE_HINTS = {
-  leader: 'Alt+S then 1…9 jumps to that slot. Alt+S alone — or followed by anything else — stacks the current tab.',
+  accord: 'Hold Alt+S and press 1…9 to jump to that slot. Let go without pressing one and the current tab is stacked.',
   direct: 'Alt+S stacks immediately. Jumping is left to Alt+1…9.',
 };
 
@@ -35,8 +35,8 @@ function apply(settings) {
 /** Keep the dependent bits of the form honest about each other. */
 function reflect(settings) {
   el('mode-hint').textContent = MODE_HINTS[settings.mode];
-  el('timeout-field').hidden = settings.mode !== 'leader';
-  el('timeout-out').textContent = `${settings.leaderTimeoutMs} ms`;
+  el('timeout-field').hidden = settings.mode !== 'accord';
+  el('timeout-out').textContent = `${settings.accordTimeoutMs} ms`;
 }
 
 function collect() {
@@ -111,7 +111,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // Slider bounds come from the same module the service worker validates against.
-el('leaderTimeoutMs').min = LIMITS.leaderTimeoutMs.min;
-el('leaderTimeoutMs').max = LIMITS.leaderTimeoutMs.max;
+el('accordTimeoutMs').min = LIMITS.accordTimeoutMs.min;
+el('accordTimeoutMs').max = LIMITS.accordTimeoutMs.max;
 
 load();
