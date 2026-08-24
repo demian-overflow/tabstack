@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tabstack</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <h1>Tabstack</h1>
+      <div class="bar-actions">
+        <button id="add" class="ghost" title="Stack the current tab (Alt+F)">+ Stack tab</button>
+        <button id="clear" class="ghost danger" title="Remove every item">Clear</button>
+      </div>
+    </header>
+
+    <ol id="list" class="stack" tabindex="0" aria-label="Stacked tabs"></ol>
+
+    <p id="empty" class="empty" hidden>
+      Nothing stacked yet.<br />
+      Press <kbd>Alt</kbd>+<kbd>F</kbd> on any page to add it.
+    </p>
+
+    <footer class="legend">
+      <span><kbd>Alt</kbd>+<kbd>F</kbd> stack</span>
+      <span><kbd>Alt</kbd>+<kbd>1…9</kbd> jump</span>
+      <span><kbd>Alt</kbd>+<kbd>⇧</kbd>+<kbd>1…9</kbd> remove</span>
+    </footer>
+
+    <script type="module" src="panel.js"></script>
+  </body>
+</html>
