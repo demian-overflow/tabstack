@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tabstack",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A keyboard-driven stack of tabs in the Chrome side panel. Hold Alt+S and press 1-9 to jump to a stacked tab; release without a digit to stack the current one.",
   "minimum_chrome_version": "116",
   "permissions": ["tabs", "storage", "sidePanel"],

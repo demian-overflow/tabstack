@@ -9,7 +9,49 @@ const empty = document.getElementById('empty');
 let stack = [];
 let selected = 0; // 0-based index into `stack`
 
-const send = (type, payload = {}) => chrome.runtime.sendMessage({ type, ...payload });
+/**
+ * The panel is shown in every window, so the worker cannot infer which one a
+ * click came from — "open it here" has to name the window.
+ */
+const myWindow = chrome.windows.getCurrent().then((w) => w.id, () => undefined);
+
+const REASONS = {
+  'empty-slot': (p) => `Slot ${p.slot} is empty`,
+  'unsupported-url': () => 'Cannot stack this page',
+  'no-tab': () => 'No tab to stack',
+};
+
+/**
+ * Every request reports. A jump that quietly fails — worker asleep, panel left
+ * over from a previous version of the extension, slot already gone — used to
+ * look exactly like a click that never registered.
+ */
+async function send(type, payload = {}) {
+  try {
+    const res = await chrome.runtime.sendMessage({ type, windowId: await myWindow, ...payload });
+    if (res && res.ok === false) {
+      note((REASONS[res.reason] || (() => `Could not ${type}: ${res.reason}`))(payload));
+    } else {
+      note('');
+    }
+    return res;
+  } catch (err) {
+    // The panel outlived the extension that opened it: its chrome.* handles are
+    // dead and every further click would be a silent no-op.
+    note(
+      /context invalidated|Receiving end does not exist/i.test(String(err))
+        ? 'Tabstack was reloaded — reopen this panel'
+        : `Tabstack did not respond: ${String(err.message || err)}`,
+    );
+    return null;
+  }
+}
+
+function note(text) {
+  const el = document.getElementById('note');
+  el.textContent = text;
+  el.hidden = !text;
+}
 
 async function load() {
   const res = await send('get');

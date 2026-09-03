@@ -260,26 +260,46 @@ content script, panel click — funnels into the same handlers, and the panel
 re-renders off `storage.onChanged` rather than keeping its own copy. That is why
 the visual order and the keyboard order cannot drift apart.
 
+Every panel request reports back, and a failure gets a line at the bottom of the
+panel rather than nothing at all — an empty slot, a page that cannot be stacked,
+or a panel left over from a previous load of the extension, which is otherwise
+indistinguishable from a click that never registered.
+
 `lib/stack.js` holds the ordering rules as pure functions with no Chrome APIs in
 them, so the part that is easy to get subtly wrong is the part that runs under
-`node --test`.
+`node --test`. `lib/focus.js` is there for the same reason: what it takes to
+actually bring a window forward is a rule worth pinning down in a test.
 
 ### Jumping to a slot
 
 ```mermaid
 flowchart TD
     A["Alt+N"] --> B{"slot N exists?"}
-    B -->|no| C["ignore"]
+    B -->|no| C["say so"]
     B -->|yes| D{"remembered tabId<br/>still open with this URL?"}
-    D -->|yes| E["activate tab<br/>focus its window"]
+    D -->|yes| E["activate it"]
     D -->|no| F{"any open tab<br/>matching the URL?"}
     F -->|yes| G["activate it,<br/>re-learn the tabId"]
-    F -->|no| H["open a new tab,<br/>store the tabId"]
+    F -->|no| H["open a new tab <b>in the window<br/>you asked from</b>, store the tabId"]
+    E --> R["raise that window —<br/>restoring it if minimized"]
+    G --> R
+    H --> R
+    R --> S{"window manager<br/>refused the raise?"}
+    S -->|yes| S1["tab is active anyway;<br/>alt-tab to it"]
+    S -->|no| S2["done"]
 ```
 
 URLs compare equal when they differ only by fragment, so `#section` links don't
 strand an item. Closing a tab clears the remembered id but keeps the stack entry
 — the slot still works, it just opens fresh.
+
+Two details that only show up with more than one window open. A minimized window
+ignores a bare focus request, so the raise asks for `state: 'normal'` in the same
+call — otherwise the tab activates invisibly and the click looks ignored. And
+raising is *best effort*: a Linux window manager may decline it, which must not
+turn a completed jump into a failed one. The panel says which window it is in
+when it asks, so a slot that is not open yet opens **there**, not in whichever
+window Chrome last considered focused.
 
 ## Data
 
@@ -310,8 +330,9 @@ npm test                    # pure logic: stack, chord, settings — node --test
 python3 tools/make-icons.py # regenerate icons (no image deps)
 ```
 
-The three `lib/` modules hold everything that is easy to get subtly wrong —
-slot renumbering, which key resolves the chord, settings validation — with no
+The four `lib/` modules hold everything that is easy to get subtly wrong —
+slot renumbering, which key resolves the chord, settings validation, what a
+window needs in order to come forward — with no
 Chrome APIs in them, so they run under `node --test` rather than by hand in a
 browser. `content/chord.js` inlines a copy of `resolve()` because content
 scripts are not ES modules; the test suite covers the module, and the copy is
@@ -331,7 +352,7 @@ Permissions the manifest asks for, and why:
 
 ## Status
 
-Prototype (v0.3.0) — unpacked install, no Web Store listing. Known gaps:
+Prototype (v0.3.1) — unpacked install, no Web Store listing. Known gaps:
 
 - No drag-to-reorder in the panel (arrow buttons and `Alt+↑/↓` only).
 - Slots beyond 9 are stored and clickable but have no keyboard binding — the

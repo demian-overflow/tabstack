@@ -5,6 +5,7 @@
  */
 import { push, at, removeAt, move, detachTab, makeItem, sameUrl, MAX_SLOTS } from './lib/stack.js';
 import { DEFAULTS, SETTINGS_KEY, normalize } from './lib/settings.js';
+import { focusArgs } from './lib/focus.js';
 
 const KEY = 'stack';
 
@@ -67,7 +68,12 @@ async function pushTab(tab) {
   return { ok: true, slot: result.slot, added: result.added, stack: result.stack };
 }
 
-async function jump(slot) {
+/**
+ * @param {number} slot 1-based
+ * @param {{windowId?: number}} where The window the request came from — the
+ *   panel is shown in every window, so "open it here" has to say which one.
+ */
+async function jump(slot, where = {}) {
   const settings = await getSettings();
   const stack = await getStack();
   const item = at(stack, slot);
@@ -75,17 +81,44 @@ async function jump(slot) {
 
   const tab = settings.reuseTab ? await findTab(item) : null;
   if (tab) {
-    await chrome.tabs.update(tab.id, { active: true });
-    await chrome.windows.update(tab.windowId, { focused: true });
-    if (item.tabId !== tab.id) {
-      await setStack(stack.map((it) => (it.id === item.id ? { ...it, tabId: tab.id } : it)));
+    try {
+      await chrome.tabs.update(tab.id, { active: true });
+      await raise(tab.windowId);
+      if (item.tabId !== tab.id) {
+        await setStack(stack.map((it) => (it.id === item.id ? { ...it, tabId: tab.id } : it)));
+      }
+      return { ok: true, slot, reused: true };
+    } catch {
+      // The tab closed between finding it and focusing it. Open it fresh rather
+      // than reporting a failure for a slot that is perfectly valid.
     }
-    return { ok: true, slot, reused: true };
   }
 
-  const created = await chrome.tabs.create({ url: item.url, active: true });
+  const created = await chrome.tabs.create({
+    url: item.url,
+    active: true,
+    // Without this the tab lands in whatever Chrome last considered focused,
+    // which on a second monitor is often not the window you clicked in.
+    ...(where.windowId != null ? { windowId: where.windowId } : {}),
+  });
+  await raise(created.windowId);
   await setStack(stack.map((it) => (it.id === item.id ? { ...it, tabId: created.id } : it)));
   return { ok: true, slot, reused: false };
+}
+
+/**
+ * Best-effort raise. The tab is already active by this point, so a window
+ * manager that refuses the focus request (common on Linux) must not turn a
+ * successful jump into a failed one.
+ */
+async function raise(windowId) {
+  if (windowId == null) return;
+  try {
+    const win = await chrome.windows.get(windowId);
+    await chrome.windows.update(windowId, focusArgs(win.state));
+  } catch {
+    /* refused, or the window went away — the activation still stands */
+  }
 }
 
 async function findTab(item) {
@@ -181,7 +214,7 @@ async function resolveChord(action, slot) {
 
   switch (action) {
     case 'jump':
-      return jump(slot);
+      return jump(slot, { windowId: held.tab && held.tab.windowId });
     case 'remove': {
       const result = await remove(slot);
       await announce(held.tab, result, result.ok ? `Removed slot ${slot}` : `Slot ${slot} is empty`);
@@ -243,7 +276,7 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   const jumpMatch = /^jump-([1-9])$/.exec(command);
   if (jumpMatch) {
     clearPending();
-    return void (await jump(Number(jumpMatch[1])));
+    return void (await jump(Number(jumpMatch[1]), { windowId: tab && tab.windowId }));
   }
 
   switch (command) {
@@ -275,11 +308,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 async function handle(msg, sender) {
   switch (msg && msg.type) {
     case 'push': {
-      const tab = sender.tab || (await currentTab());
+      const tab = sender.tab || (await currentTab(msg.windowId));
       return announce(tab, await pushTab(tab));
     }
     case 'jump':
-      return jump(msg.slot);
+      return jump(msg.slot, { windowId: msg.windowId ?? (sender.tab && sender.tab.windowId) });
     case 'remove':
       return remove(msg.slot);
     case 'move':

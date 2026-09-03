@@ -131,6 +131,14 @@ button.ghost.danger:hover { color: var(--danger); }
   margin: 0;
 }
 
+.note {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  color: var(--danger);
+  font-size: 11px;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
