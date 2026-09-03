@@ -30,6 +30,8 @@ Requires Chrome 116+ (Side Panel API).
 | `Alt+Shift+S` | Open the side panel | Everywhere (Chrome command) |
 | `Alt+1`, `Alt+2` | Jump to slot 1 / 2, on its own | Everywhere (Chrome command) |
 | `Alt+3` … `Alt+9` | Jump to slot 3 … 9, on its own | Normal pages (content script) |
+| `Alt+J`, then `1…9` | Jump to that slot — `Alt` held, `J` may be released | Normal pages (content script) |
+| `Alt+J`, then `⇧`+`1…9` | Remove that slot | Normal pages (content script) |
 | `Alt+Shift+1…9` | Remove that slot | Normal pages (content script) |
 | `1` … `9` | Jump, when the panel has focus | Side panel |
 | `↑` `↓` / `Enter` / `Backspace` | Select / open / remove | Side panel |
@@ -38,6 +40,13 @@ Requires Chrome 116+ (Side Panel API).
 Pushing a URL that is already stacked refreshes it in place rather than adding a
 duplicate, and new tabs are **appended**, so a slot number stays put for as long
 as that item lives. Muscle memory survives.
+
+`Alt+J` is the accord for hands that would rather not reach: the left thumb
+holds `Alt`, `J` sits under the right index finger, and the digit follows. It is
+jump-only — letting go of `Alt` without a digit does nothing, so there is no way
+to stack a tab by accident from it. It runs entirely in the page, which is why
+it costs none of the four Chrome bindings and follows the physical key under
+any layout, and also why it shares the content-script limits of `Alt+3…9`.
 
 Everything above is configurable, including turning the accord off entirely —
 see [Settings](#settings).
@@ -201,6 +210,7 @@ Open them from the gear in the side panel, or right-click the toolbar icon →
 | Hold limit | `1500 ms` | Safety net if the `Alt` release is never seen; not the normal path |
 | Slot list on page | on | The HUD, after 180 ms of holding |
 | `Alt+1…9` jumps | on | Direct jumps without holding `S` |
+| `Alt+J` accord | on | `Alt+J`, then a digit, jumps; release without one to cancel |
 | `Alt+⇧+1…9` removes | on | Direct removal |
 | Confirmation bubbles | on | The on-page toasts |
 | New tab lands | bottom | `top` makes the newest slot 1, at the cost of renumbering |
@@ -352,7 +362,7 @@ Permissions the manifest asks for, and why:
 
 ## Status
 
-Prototype (v0.3.1) — unpacked install, no Web Store listing. Known gaps:
+Prototype (v0.4.0) — unpacked install, no Web Store listing. Known gaps:
 
 - No drag-to-reorder in the panel (arrow buttons and `Alt+↑/↓` only).
 - Slots beyond 9 are stored and clickable but have no keyboard binding — the

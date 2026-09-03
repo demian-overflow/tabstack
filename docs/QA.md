@@ -1,4 +1,4 @@
-# QA — Tabstack v0.3.1
+# QA — Tabstack v0.4.0
 
 How to test this extension by hand, end to end. Every case below is written as
 **Steps → Expect**, with the exact key, URL, or console snippet to use. A case
@@ -56,7 +56,7 @@ Requires **Chrome 116+** (Side Panel API). Verified against Chrome 151.
 
 | # | Steps | Expect |
 | --- | --- | --- |
-| 1.1 | `chrome://extensions` → **Developer mode** on → **Load unpacked** → pick the repo root | Card reads *Tabstack 0.3.1*, **no** "Errors" button |
+| 1.1 | `chrome://extensions` → **Developer mode** on → **Load unpacked** → pick the repo root | Card reads *Tabstack 0.4.0*, **no** "Errors" button |
 | 1.2 | Click the **service worker** link on the card | DevTools opens on `background.js`, console clean |
 | 1.3 | Pin the toolbar icon, click it | Side panel opens showing *Nothing stacked yet* |
 | 1.4 | `chrome://extensions/shortcuts` → find Tabstack | Exactly four bindings pre-set: `Alt+S` (stack), `Alt+Shift+S` (panel), `Alt+1`, `Alt+2`. Slots 3–9 and *Remove the last stack item* read **not set** — that is correct, Chrome allows only four `suggested_key` entries |
@@ -122,6 +122,13 @@ Settings must be at defaults (mode `accord`, HUD on, toasts on).
 | 3.6 | `Alt+7` with only 3 items stacked | Toast *Slot 7 is empty*; nothing else changes |
 | 3.7 | Switch to a Cyrillic (or any non-Latin) layout, press `Alt+3` | Still jumps — the content script matches `event.code`, the physical key. `Alt+S` is Chrome's binding and *may* stop firing under that layout; see [Not bugs](#not-bugs) |
 | 3.8 | Numpad: hold the accord, press numpad `4` | Jumps to slot 4 (`Numpad1–9` resolve like the digit row) |
+| 3.9 | Hold `Alt`, tap `J`, tap `2` (Alt still held) | Jumps to slot 2. After ~180 ms of holding, the HUD shows with the hint *release to cancel* |
+| 3.10 | Hold `Alt`, tap `J`, release `Alt` | **Nothing happens** — no stack, no jump, HUD hides. The `J` accord never stacks |
+| 3.11 | Hold `Alt`, tap `J`, tap `Esc` | Accord ends, HUD hides; nothing else |
+| 3.12 | Hold `Alt`, tap `J`, tap `J` again, tap `3` | Jumps to slot 3 — a second `J` is ignored, not a cancel |
+| 3.13 | Hold `Alt`, tap `J`, `Shift+4` | Toast *Removed slot 4*, or *Slot 4 is empty* |
+| 3.14 | Under a Cyrillic layout: hold `Alt`, tap the physical `J` key, tap `1` | Jumps — `event.code` again, so the layout does not matter |
+| 3.15 | On a page with `<a accesskey="j">` (make one via the console), press `Alt+J` | The accord arms; the accesskey does **not** fire — the keydown is swallowed in capture |
 
 ---
 
@@ -202,6 +209,7 @@ Open via the panel's ⚙, or right-click the toolbar icon → *Options*.
 | 7.6 | Uncheck *Confirmation bubbles* → stack a tab | No toast; the stack still updates |
 | 7.7 | Uncheck *Alt+1…9 jumps* → press `Alt+3` on a page | Nothing happens. `Alt+1`/`Alt+2` **still work** — those are Chrome bindings the setting cannot reach. Expected |
 | 7.8 | Uncheck *Alt+⇧+1…9 removes* → `Alt+Shift+2` | Nothing happens |
+| 7.8a | Uncheck *Alt+J, then 1…9 jumps* → hold `Alt`, tap `J`, tap `1` | Nothing happens; `Alt+J` passes through to the page |
 | 7.9 | **Keyboard shortcuts** list | Mirrors `chrome://extensions/shortcuts` exactly, including *not set* rows. Bind something there, reload options → the new binding shows |
 | 7.10 | *Open Chrome's shortcut editor* | Opens `chrome://extensions/shortcuts` in a new tab |
 | 7.11 | **Reset to defaults** | Every control snaps back; *Saved* flashes |
@@ -227,7 +235,7 @@ Open via the panel's ⚙, or right-click the toolbar icon → *Options*.
 Confirmed behaviour — do not file these:
 
 - **`Alt+S` does nothing on `chrome://` pages beyond stacking-refusal silence** — `chrome://` URLs are deliberately refused (§4.1), and the refusal toast has nowhere to render.
-- **`Alt+3`…`Alt+9` are dead on `chrome://`, the Web Store, the PDF viewer, and the new tab page** — content scripts cannot run there. Bind them in Chrome to fix (§3.4).
+- **`Alt+3`…`Alt+9` and the `Alt+J` accord are dead on `chrome://`, the Web Store, the PDF viewer, and the new tab page** — content scripts cannot run there. Bind the digits in Chrome to fix (§3.4); `Alt+J` has no such workaround, use `Alt+S` there.
 - **Only four shortcuts arrive pre-bound.** Chrome's `suggested_key` limit, not an omission.
 - **`Alt+F` / `Ctrl+E` cannot be assigned.** Chrome's own accelerators always win; the shortcut editor will accept the keystroke and it will never fire.
 - **Slots 10+ have no key.** The accord reads one digit.

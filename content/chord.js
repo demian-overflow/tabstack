@@ -1,13 +1,17 @@
 /**
  * Page-level keyboard layer.
  *
- * Two jobs:
+ * Three jobs:
  *  1. The second half of the Alt+S accord. Chrome swallows the Alt+S keydown to
  *     fire its command, so the page never sees that key and cannot detect the
  *     accord on its own; the service worker tells it when the accord is armed.
  *     The digit pressed while Alt is still down arrives here as an ordinary
  *     Alt+digit, and releasing Alt ends the accord.
- *  2. Direct Alt+1..9 / Alt+Shift+1..9, which sidestep the four-shortcut limit
+ *  2. The Alt+J accord, which is jump-only and lives entirely here: no Chrome
+ *     command is involved, so it costs none of the four suggested keys. Hold
+ *     Alt, tap J, tap a digit. J itself may be released; only Alt must stay
+ *     down. Letting go of Alt without a digit cancels — it never stacks.
+ *  3. Direct Alt+1..9 / Alt+Shift+1..9, which sidestep the four-shortcut limit
  *     on suggested keys.
  *
  * Everything keys off event.code — physical key position — so the bindings
@@ -20,10 +24,11 @@
 (() => {
   // A single closure keeps the armed state and the UI in step.
   const ui = createUi();
-  let armed = false;
+  /** null, 'stack' (Alt+S, armed by the worker) or 'jump' (Alt+J, armed here). */
+  let armed = null;
   let altDown = false;
   let hudTimer = null;
-  let settings = { altDigitJump: true, altShiftDigitRemove: true, toasts: true };
+  let settings = { altDigitJump: true, altShiftDigitRemove: true, altJAccord: true, showHud: true, toasts: true };
 
   chrome.runtime.sendMessage({ type: 'settings' }, (res) => {
     void chrome.runtime.lastError;
@@ -42,11 +47,11 @@
       // (the arm message costs a few ms), in which case the accord is over
       // before it began and the tab should just be stacked.
       if (!altDown) return send({ type: 'chord', action: 'commit' });
-      armed = true;
+      armed = 'stack';
       if (msg.showHud) {
         // Only surface the list if the accord is genuinely being *held*, so a
         // quick tap does not flash a panel at you.
-        hudTimer = setTimeout(() => ui.showHud(msg.stack, msg.timeoutMs), 180);
+        hudTimer = setTimeout(() => ui.showHud(msg.stack, 'stack'), 180);
       }
       return;
     }
@@ -63,36 +68,83 @@
   // leave it armed until the safety-net timeout.
   window.addEventListener('blur', () => {
     altDown = false;
-    if (armed) finish('commit');
+    release();
   });
 
   function disarm() {
-    armed = false;
+    armed = null;
     clearTimeout(hudTimer);
     ui.hideHud();
   }
 
-  /** Resolve the accord exactly once, and tell the worker how it ended. */
+  /** Resolve the Alt+S accord exactly once, and tell the worker how it ended. */
   function finish(action, slot) {
     disarm();
     send({ type: 'chord', action, slot });
   }
 
+  /** Alt went up (or focus left): the stack accord commits, the jump accord just ends. */
+  function release() {
+    if (armed === 'stack') finish('commit');
+    else if (armed === 'jump') disarm();
+  }
+
+  /**
+   * Arm the Alt+J accord. The worker is not involved until a digit is chosen,
+   * so the HUD fetches the stack itself.
+   */
+  function armJump() {
+    armed = 'jump';
+    if (!settings.showHud) return;
+    send({ type: 'get' }, (res) => {
+      if (armed !== 'jump' || !res || !res.stack) return;
+      const items = res.stack.map((item, i) => ({ slot: i + 1, title: item.title }));
+      hudTimer = setTimeout(() => ui.showHud(items, 'jump'), 180);
+    });
+  }
+
+  function jumpTo(slot) {
+    send({ type: 'jump', slot }, (res) => {
+      if (res && !res.ok && settings.toasts) ui.toast(`Slot ${slot} is empty`);
+    });
+  }
+
+  function removeSlot(slot) {
+    send({ type: 'remove', slot }, (res) => {
+      if (!settings.toasts) return;
+      ui.toast(res && res.ok ? `Removed slot ${slot}` : `Slot ${slot} is empty`);
+    });
+  }
+
   function onKeyUp(event) {
     if (event.key !== 'Alt') return;
     altDown = false;
-    // Released without choosing a slot: that is the "stack this tab" gesture.
-    if (armed) finish('commit');
+    // Released without choosing a slot: "stack this tab" for Alt+S, nothing for Alt+J.
+    release();
   }
 
   function onKeyDown(event) {
     if (event.key === 'Alt') altDown = true;
     if (event.isComposing || event.repeat) return;
 
+    if (armed === 'jump' && event.code === 'KeyJ') {
+      // Tapping J again while still held: keep waiting for the digit.
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (armed) {
       const { action, slot, swallow } = resolveChord(event.code, { shiftKey: event.shiftKey });
       if (action === 'ignore') return;
-      finish(action, slot);
+      if (armed === 'stack') {
+        finish(action, slot);
+      } else {
+        // Jump accord: a digit acts on its own, anything else just ends it.
+        disarm();
+        if (action === 'jump') jumpTo(slot);
+        else if (action === 'remove') removeSlot(slot);
+      }
       if (swallow) {
         event.preventDefault();
         event.stopPropagation();
@@ -101,21 +153,26 @@
     }
 
     if (!event.altKey || event.ctrlKey || event.metaKey) return;
+
+    if (event.code === 'KeyJ' && !event.shiftKey) {
+      if (!settings.altJAccord) return;
+      armJump();
+      // Swallow it so a page accesskey on J does not fire underneath.
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     const digit = /^Digit([1-9])$/.exec(event.code);
     if (!digit) return;
 
     const slot = Number(digit[1]);
     if (event.shiftKey) {
       if (!settings.altShiftDigitRemove) return;
-      send({ type: 'remove', slot }, (res) => {
-        if (!settings.toasts) return;
-        ui.toast(res && res.ok ? `Removed slot ${slot}` : `Slot ${slot} is empty`);
-      });
+      removeSlot(slot);
     } else {
       if (!settings.altDigitJump) return;
-      send({ type: 'jump', slot }, (res) => {
-        if (res && !res.ok && settings.toasts) ui.toast(`Slot ${slot} is empty`);
-      });
+      jumpTo(slot);
     }
     event.preventDefault();
     event.stopPropagation();
@@ -202,7 +259,7 @@
     }
 
     return {
-      showHud(items) {
+      showHud(items, mode) {
         if (!attach()) return;
         hud.replaceChildren();
         if (!items.length) {
@@ -227,9 +284,10 @@
         const hint = document.createElement('div');
         hint.className = 'hint';
         // No countdown bar: the accord ends when you let go, not on a timer.
+        const tail = mode === 'jump' ? ' · release to cancel' : ' · release to stack';
         hint.append(...(items.length
-          ? [text('press '), strong('1–9'), text(' to jump · '), strong('⇧'), text('+digit removes · release to stack')]
-          : [text('release to stack this tab')]));
+          ? [text('press '), strong('1–9'), text(' to jump · '), strong('⇧'), text('+digit removes' + tail)]
+          : [text(mode === 'jump' ? 'stack is empty — release to cancel' : 'release to stack this tab')]));
         hud.append(hint);
         hud.classList.add('show');
       },
